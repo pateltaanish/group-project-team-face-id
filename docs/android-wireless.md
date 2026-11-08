@@ -754,19 +754,14 @@ Liveness/PAD is maintained separately and its existing policy is unchanged.
   result names the account and denies access without sending an actuator command.
 - Revoke a phone, including the current phone. Its next authenticated request
   must fail; other phones remain paired. Ordinary admin cannot revoke owner phones.
-<<<<<<< HEAD
-- Phones have Status, Users and Logs, plus a PIN-protected **Lock** button on the
-  Console tab (shown when the host reports `phone_lock_available`). No
-  unlock/ignition/reset or Settings controls are offered; those phone API calls
-  are denied at the host too.
-=======
 - Phones have Status, Users and Logs; owners and administrators also have Settings.
   Check all setting bounds, Reset without saving, PIN cancellation, successful
   Save, preservation of drafts on Refresh, and tab removal after demotion.
   Confirm Refresh is reachable above navigation with both Android navigation
-  modes. No lock/unlock/ignition/reset controls are offered on phones; those API
-  calls remain denied at the host.
->>>>>>> origin/main
+  modes.
+- Phones also have a PIN-protected **Lock** button on the Console tab (shown when
+  the host reports `phone_lock_available`). No unlock/ignition/reset controls are
+  offered on phones; those API calls remain denied at the host.
 - Exercise local-dashboard vehicle behavior on Pi and PC development separately.
   PC results remain simulated; Pi command delivery does not confirm motor position.
   Face success remains dependent on the separately maintained liveness policy.
