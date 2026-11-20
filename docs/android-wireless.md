@@ -564,6 +564,12 @@ the current serial connection and discarded when it closes. Older firmware
 without this extension produces unknown controller status, not a fallback to
 the last host command. See the [firmware protocol](../ESP32_Program/ReadMe.md#serial-protocol).
 
+The Accord relay firmware (`ESP32_Program/Accord_Face_Access`) sends the same
+`STATE 1 <LOCK> OFF` line (ignition is always `OFF`). The car gives no lock
+feedback, so it reports the state our system last commanded: locks or unlocks
+made with the car's own door buttons, key or fob are not detected. The phone
+caption says so ("Last state set by BASS…").
+
 Android shows fresh controller reports on Pi. While connected it refreshes
 `/api/status` about every 1.5 seconds and the full snapshot (users, faces,
 devices, logs, and administrator settings) about every 10 seconds, reading status

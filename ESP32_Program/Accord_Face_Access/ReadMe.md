@@ -98,7 +98,15 @@ HMAC on `AUTHORIZED` and `LOCK` is still planned.
 | `LOCK` | **Ignored** while `ALLOW_LOCK = false` (default): replies `Locking disabled; LOCK ignored`. With `ALLOW_LOCK = true` it runs the same sequence as `SECURE` |
 | `STOP` | Cancel a pending scan and turn every relay off |
 | `START` | Ignored: no ignition relay |
-| `STATUS` | Replies `STATUS <LOCKED/UNLOCKED> SEQ:<name> AUTH:<IDLE/WAITING>` |
+| `STATUS` | From the Pi: replies `STATE 1 <LOCK> OFF` only. From USB: also prints `STATUS <LOCKED/UNLOCKED> SEQ:<name> AUTH:<IDLE/WAITING>` |
+
+ESP32 → Pi `STATE 1 <LOCK> OFF` is what the phone's Console shows. `<LOCK>` is
+`LOCKED`, `UNLOCKED`, `LOCKING` (SECURE running) or `UNLOCKING` (ENTRY running);
+ignition is always `OFF` (no ignition relay). It is sent at boot, when a
+sequence starts, finishes or is aborted, and in reply to the Pi's `STATUS` poll
+every 3 s (polls are not echoed to USB). It is the state **our system last
+commanded**: locking or unlocking with the car's own door buttons, key or fob
+is not detected, so the phone can be wrong until BASS next locks or unlocks.
 
 Sequences don't block: the sensor, LCD and serial keep running. The newest
 command replaces a running sequence instead of replying `BUSY`. The Pi sends
@@ -118,6 +126,7 @@ arms, and the Pi sends it only for a phone Lock.
 | Person ≤ 20 cm for 3 readings | `START_AUTH UNLOCK`, LCD `Scanning...` |
 | Authorized | ENTRY, LCD `Welcome`; no new scan until the person walks away |
 | Not authorized / no reply in 30 s | LCD `Access denied` / `Denied`; rescan after they leave or 10 s |
+| No valid echo | No echo within 25 ms, an echo shorter than ~2 cm (116 µs), or ECHO already HIGH before the trigger: counts as nobody there. GPIO34 has no internal pull-down, so keep the divider's 2 kΩ to GND at the ESP32; then an unplugged sensor reads LOW instead of triggering scans from noise |
 
 Every walk-up asks for an unlock because the car gives no lock feedback.
 Disarming and unlocking an already-open car is harmless. Line 2 of the LCD

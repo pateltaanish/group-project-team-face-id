@@ -55,6 +55,9 @@ const float GONE_CM = 30.0;
 const int PRESENCE_READINGS = 3;
 const unsigned long SENSOR_INTERVAL_MS = 100;
 const unsigned long ECHO_TIMEOUT_US = 25000;
+// HC-SR04 minimum range is ~2 cm (~116 us). Shorter pulses are noise, e.g. a
+// floating ECHO line when the sensor is unplugged, not a person.
+const unsigned long MIN_ECHO_US = 116;
 
 // After a failed result, wait for the person to leave (or this long) before scanning again
 const unsigned long REARM_MS = 10000;
@@ -176,6 +179,7 @@ void setup() {
   }
   Serial.println("Walking up sends START_AUTH UNLOCK <request_id> to the Pi");
   report(locked ? "Restored state: Locked" : "Restored state: Unlocked");
+  sendControllerState(true);
   updateLcd();
 }
 
@@ -183,6 +187,27 @@ void setup() {
 void report(const char* text) {
   piLink.println(text);
   Serial.println(text);
+}
+
+// The car gives no lock feedback, so this is the state our system last
+// commanded (an ENTRY/SECURE sequence), not a measured state. Locking or
+// unlocking with the car's own buttons, key or fob is not seen here.
+const char* controllerLockState() {
+  if (activeSequence == SEQ_ENTRY) return "UNLOCKING";
+  if (activeSequence == SEQ_SECURE) return "LOCKING";
+  return locked ? "LOCKED" : "UNLOCKED";
+}
+
+// "STATE 1 <lock> <ignition>" is what the Pi reads for the phone's status.
+// Ignition is always OFF: this car has no ignition relay. The Pi polls STATUS
+// every 3 s, so those replies skip the USB log (logUsb = false).
+void sendControllerState(bool logUsb) {
+  char line[32];
+  snprintf(line, sizeof(line), "STATE 1 %s OFF", controllerLockState());
+  piLink.println(line);
+  if (logUsb) {
+    Serial.println(line);
+  }
 }
 
 // ── Relay sequences ──────────────────────────────────────────────────────
@@ -206,7 +231,7 @@ void beginStep() {
   stepStartedAt = millis();
 }
 
-void abortSequence() {
+void abortSequence(bool reportState = true) {
   allRelaysOff();
   if (activeSequence == SEQ_NONE) {
     return;
@@ -215,12 +240,15 @@ void abortSequence() {
   snprintf(line, sizeof(line), "ABORT %s", sequenceName(activeSequence));
   report(line);
   activeSequence = SEQ_NONE;
+  if (reportState) {
+    sendControllerState(true);
+  }
 }
 
 // The newest command wins: the Pi sends STOP then LOCK back to back, and a
 // compensating LOCK right after UNLOCK, so a running sequence is replaced.
 void startSequence(Sequence sequence) {
-  abortSequence();
+  abortSequence(false);
   switch (sequence) {
     case SEQ_ENTRY:  sequenceSteps = ENTRY_STEPS;  sequenceLength = 3; break;
     case SEQ_SECURE: sequenceSteps = SECURE_STEPS; sequenceLength = 3; break;
@@ -233,6 +261,7 @@ void startSequence(Sequence sequence) {
   char line[24];
   snprintf(line, sizeof(line), "START %s", sequenceName(sequence));
   report(line);
+  sendControllerState(true);
   beginStep();
 }
 
@@ -247,6 +276,7 @@ void finishSequence() {
   char line[24];
   snprintf(line, sizeof(line), "DONE %s", sequenceName(finished));
   report(line);
+  sendControllerState(true);
 }
 
 void runSequence() {
@@ -306,15 +336,19 @@ void updateLcd() {
 
 // ── Presence sensor ──────────────────────────────────────────────────────
 
-// Returns distance in cm, or -1 if no echo (nothing in range)
+// Returns distance in cm, or -1 if no valid echo (counts toward "gone").
+// GPIO34 has no internal pull-down: keep the divider's 2k to GND at the ESP32
+// so an unplugged sensor reads LOW instead of floating.
 float readDistanceCm() {
+  // A working sensor idles ECHO LOW; HIGH before triggering means a bad or floating line
+  if (digitalRead(ECHO_PIN) == HIGH) return -1;
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
   digitalWrite(TRIG_PIN, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
   unsigned long us = pulseIn(ECHO_PIN, HIGH, ECHO_TIMEOUT_US);
-  if (us == 0) return -1;
+  if (us < MIN_ECHO_US) return -1;  // timeout (0) or noise glitch
   return us / 58.0;
 }
 
@@ -564,7 +598,13 @@ void handleLine(char* line, bool fromPi) {
     report("No ignition relay on this car; START ignored");
 
   } else if (strcmp(start, "STATUS") == 0) {
-    reportStatus();
+    if (fromPi) {
+      // Polled every 3 s by the Pi: reply with the parseable state only
+      sendControllerState(false);
+    } else {
+      reportStatus();
+      sendControllerState(true);
+    }
 
   } else if (!fromPi && strcmp(start, "DISARM") == 0) {
     startSequence(SEQ_DISARM);

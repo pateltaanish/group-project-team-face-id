@@ -82,7 +82,7 @@
     <string name="console_host_controls_only">Other vehicle controls are available only on the trusted host.</string>
     <string name="console_lock">Lock</string>
     <string name="console_lock_hint">Locks the doors and arms the alarm. Your PIN is required.</string>
-    <string name="console_controller_reported">Controller-reported state. Physical position is not confirmed.</string>
+    <string name="console_controller_reported">Last state set by BASS. Changes made with the car\'s own buttons, key or fob aren\'t detected.</string>
     <string name="console_controller_unavailable">Controller status is unavailable or stale. Physical position is not confirmed.</string>
     <string name="console_battery">Battery</string>
     <string name="console_signal">Signal</string>
